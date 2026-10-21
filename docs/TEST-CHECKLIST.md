@@ -15,3 +15,10 @@ Perform these tests manually after the GitHub Actions build succeeds. Back up im
 11. **Interrupted close:** Change a harmless setting, then terminate the application process; confirm last fully written settings are backed up. Do not forcibly kill the portable launcher just after changing a setting if you plan to replace App immediately.
 
 If you observe new files in Windows AppData, ProgramData, IsolatedStorage or registry, capture their path and timestamp. Do **not** delete entire parent folders; they can be shared by other programs.
+
+### PortableApps Menu
+- [ ] Extract inner ZIP directly to the directory containing PortableApps.com (not one directory deeper)
+- [ ] App/AppInfo/appinfo.ini exists beside appicon.ico, PNG icon variants exist
+- [ ] Root launcher is exactly FluentCleanerPortable/FluentCleanerPortable.exe
+- [ ] PortableApps.com Platform: Apps > Refresh App Icons; FluentCleaner Classic Portable listed under Utilities
+- [ ] With portable app closed, verify Data/Settings/settings.json is unchanged by rebuilding

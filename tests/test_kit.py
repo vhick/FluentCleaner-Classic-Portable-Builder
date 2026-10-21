@@ -8,7 +8,7 @@ class BuilderContract(unittest.TestCase):
         self.assertNotIn('schedule:', yaml)
         self.assertIn('windows-2022', yaml)
         self.assertIn('actions/upload-artifact@v7', yaml)
-        self.assertIn('include-hidden-files: true', yaml)
+        self.assertIn('path: dist/*.zip', yaml)
     def test_expected_official_asset(self):
         txt=(ROOT/'scripts/build.ps1').read_text(encoding="utf-8")
         self.assertIn('FluentCleaner-Classic-net48.zip', txt)
@@ -67,6 +67,34 @@ class BuilderContract(unittest.TestCase):
         workflow = (ROOT/'.github/workflows/build-fluentcleaner-classic-portable.yml').read_text(encoding='utf-8')
         self.assertIn('PYTHONUTF8: "1"', workflow)
         self.assertIn('python -X utf8 -m unittest', workflow)
+
+    def test_portableapps_menu_metadata_and_icons(self):
+        build=(ROOT/'scripts/build.ps1').read_text(encoding='utf-8')
+        launcher=(ROOT/'launcher/FluentCleanerPortable.cs').read_text(encoding='utf-8')
+        self.assertIn("$iconDir = Join-Path $stage 'App/AppInfo'", build)
+        self.assertIn("$icon = Join-Path $iconDir 'appicon.ico'", build)
+        self.assertIn("Join-Path $iconDir 'appinfo.ini'", build)
+        self.assertIn('Type=PortableApps.comFormat', build)
+        self.assertIn('AppID=FluentCleanerPortable-Community', build)
+        self.assertIn('Start=FluentCleanerPortable.exe', build)
+        self.assertIn('appicon_$size.png', build)
+        self.assertNotIn("$iconDir = Join-Path $stage 'Other/AppInfo'", build)
+        self.assertIn('@"App\\AppInfo\\appinfo.ini"', launcher)
+
+    def test_artifact_contains_correct_parent_folder(self):
+        workflow=(ROOT/'.github/workflows/build-fluentcleaner-classic-portable.yml').read_text(encoding='utf-8')
+        self.assertIn('CreateFromDirectory', workflow)
+        self.assertIn('CompressionLevel]::Optimal, $true', workflow)
+        self.assertIn('FluentCleanerPortable/App/AppInfo/appinfo.ini', workflow)
+        self.assertIn('FluentCleanerPortable/FluentCleanerPortable.exe', workflow)
+        self.assertIn('path: dist/*.zip', workflow)
+        self.assertNotIn('path: stage/FluentCleanerPortable/**', workflow)
+
+    def test_readme_explains_placement(self):
+        doc=(ROOT/'README.md').read_text(encoding='utf-8')
+        self.assertIn('PortableApps.com Menu integration (v1.4)', doc)
+        self.assertIn('Apps > Refresh App Icons', doc)
+        self.assertIn('Preserve your whole existing `Data/` directory',doc)
 
     def test_docs_disclose_closed_source(self):
         doc=(ROOT/'README.md').read_text(encoding="utf-8").lower()

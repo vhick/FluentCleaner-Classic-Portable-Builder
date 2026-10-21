@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ProgressPreference = 'SilentlyContinue'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
-$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.3'; 'Accept' = 'application/vnd.github+json' }
+$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.4'; 'Accept' = 'application/vnd.github+json' }
 $api = 'https://api.github.com/repos/builtbybel/FluentCleaner'
 $assetName = 'FluentCleaner-Classic-net48.zip'
 
@@ -54,7 +54,7 @@ if (Test-Path $work) { Remove-Item -LiteralPath $work -Recurse -Force }
 if (Test-Path $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $work,$stage -Force | Out-Null
 $archive = Join-Path $work $assetName
-Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.3' } -MaximumRedirection 5
+Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.4' } -MaximumRedirection 5
 if ((Get-Item -LiteralPath $archive).Length -lt 50000) { throw 'Official ZIP appears to be empty or truncated.' }
 if ([long]$asset.size -gt 0 -and (Get-Item -LiteralPath $archive).Length -ne [long]$asset.size) {
     throw 'Downloaded ZIP file length does not match GitHub release asset metadata.'
@@ -117,11 +117,12 @@ foreach ($sub in @('Settings','Custom','Databases')) {
     New-Item -ItemType Directory -Path $folder -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $folder '.keep') -Value '' -NoNewline
 }
-$iconDir = Join-Path $stage 'Other/AppInfo'
+$iconDir = Join-Path $stage 'App/AppInfo'
 $srcDir = Join-Path $stage 'Other/Source'
 New-Item -ItemType Directory -Path $iconDir,$srcDir -Force | Out-Null
-# Retain official basename (no rename to avoid breaking executable configuration/resources).
-$icon = Join-Path $iconDir 'FluentCleaner.ico'
+# Use the STANDARD PortableApps.com AppInfo location and icon names.
+# The vendor executable filename is kept unmodified inside App/FluentCleaner.
+$icon = Join-Path $iconDir 'appicon.ico'
 & (Join-Path $PSScriptRoot 'Extract-OfficialIcon.ps1') -ExePath $packagedExe -OutputPath $icon
 # Build the launcher's .NET Framework 4.8 Windows GUI executable using Windows' native C# compiler.
 $csc = Join-Path $env:WINDIR 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
@@ -141,13 +142,76 @@ if ([string]::IsNullOrWhiteSpace($version) -or $version -notmatch '^[0-9]+(\.[0-
     $version = [string]$release.tag_name
 }
 $version = ($version -replace '[^a-zA-Z0-9._-]','-')
+# Official menu format: App/AppInfo/appinfo.ini, not Other/AppInfo.
+# Windows may pick a smaller native image from the multi-resolution ORIGINAL ICO.
+# Every PNG is derived from the SAME upstream official icon; never substitute artwork.
+Add-Type -AssemblyName System.Drawing
+foreach ($size in @(16,32,75,128,256)) {
+    $target = Join-Path $iconDir "appicon_$size.png"
+    $icoObj = $null
+    $bmp = $null
+    try {
+        $icoObj = [System.Drawing.Icon]::new($icon, $size, $size)
+        $sourceBitmap = $icoObj.ToBitmap()
+        try {
+            $bmp = [System.Drawing.Bitmap]::new($sourceBitmap, $size, $size)
+            $bmp.Save($target, [System.Drawing.Imaging.ImageFormat]::Png)
+        } finally { $sourceBitmap.Dispose() }
+    } finally {
+        if ($null -ne $bmp) { $bmp.Dispose() }
+        if ($null -ne $icoObj) { $icoObj.Dispose() }
+    }
+    if ((Get-Item -LiteralPath $target).Length -lt 100) { throw "Invalid official icon PNG: $target" }
+}
+# PackageVersion must be four numeric components.
+$numericSegments = @([regex]::Matches($version, '\d+') | ForEach-Object { $_.Value } | Select-Object -First 4)
+if ($numericSegments.Count -eq 0) { throw "Cannot form PortableApps PackageVersion from '$version'" }
+while ($numericSegments.Count -lt 4) { $numericSegments += '0' }
+$packageVersion = ($numericSegments -join '.')
+# No PAF installer required: PortableApps Platform reads this file when folder is placed in X:\PortableApps.
+# This is a community portable build, NOT an official PortableApps.com release.
+@"
+[Format]
+Type=PortableApps.comFormat
+Version=3.9
+
+[Details]
+Name=FluentCleaner Classic Portable
+AppID=FluentCleanerPortable-Community
+Publisher=builtbybel (original application)
+Homepage=https://github.com/builtbybel/FluentCleaner
+Category=Utilities
+Description=Classic system cleaner using a community-built portable launcher
+Language=English
+
+[License]
+Shareable=false
+OpenSource=false
+Freeware=true
+CommercialUse=false
+
+[Version]
+PackageVersion=$packageVersion
+DisplayVersion=$version
+
+[Dependencies]
+UsesDotNetVersion=4.8
+
+[Control]
+Icons=1
+Start=FluentCleanerPortable.exe
+"@ | Set-Content -LiteralPath (Join-Path $iconDir 'appinfo.ini') -Encoding ASCII
+if (-not (Test-Path (Join-Path $iconDir 'appicon.ico'))) { throw 'Missing standard PortableApps icon.' }
+if (-not (Test-Path (Join-Path $iconDir 'appinfo.ini'))) { throw 'Missing standard PortableApps metadata.' }
 @"
 FluentCleaner Classic: upstream release tag $($release.tag_name)
 Official distribution: $url
 Official asset SHA256: $sha
 Classic program version (from executable metadata): $version
 Classic executable filename: $exeName
-Builder version: 1.3
+PortableApps menu metadata: App/AppInfo/appinfo.ini
+Distribution ZIP contains outer FluentCleanerPortable/ folder: yes
+Builder version: 1.4
 Unmodified Classic binary: yes
 Settings handling: local settings.json is backed up to Data/Settings/settings.json
 IMPORTANT: app scheduled tasks and automatic CLI logs cannot be made isolated without modifying Classic's private source.
@@ -155,6 +219,9 @@ IMPORTANT: app scheduled tasks and automatic CLI logs cannot be made isolated wi
 @'
 FLUENTCLEANER CLASSIC PORTABLE — START HERE
 
+Extract the INNER FluentCleanerPortable-<version>.zip into X:\PortableApps\ .
+You must end up with X:\PortableApps\FluentCleanerPortable\FluentCleanerPortable.exe
+If the platform is already running, select Apps > Refresh App Icons.
 Launch ONLY FluentCleanerPortable.exe at the top level.
 It automatically stores settings and custom cleaning rules under Data/.
 No installation is needed on Windows with .NET Framework 4.8.
@@ -180,6 +247,6 @@ scheduled-task and /AUTO log paths remain known unsupported cases.
 & $launcherExe '--self-test'
 if ($LASTEXITCODE -ne 0) { throw "Root portable launcher self-test failed: $LASTEXITCODE" }
 if ((Get-Item -LiteralPath $launcherExe).Length -lt 5000) { throw 'Portable launcher unexpectedly small.' }
-Write-Host 'PASS: launcher self-test, source asset, official icon, App/Data/Other layout.'
+Write-Host 'PASS: launcher self-test, source asset, standard PortableApps icon and metadata, App/Data/Other layout.'
 Write-Host 'PENDING: user must verify Windows GUI / settings persistence / scheduled-task behavior.'
 "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

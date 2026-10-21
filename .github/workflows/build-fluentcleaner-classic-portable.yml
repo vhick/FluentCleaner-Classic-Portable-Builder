@@ -37,12 +37,36 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: ./scripts/build.ps1 -ReleaseTag "$env:RELEASE_TAG"
 
-      - name: Upload actual ready-to-use App Data Other portable folder
+      - name: Make a ready-to-extract portable ZIP with parent directory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          $out = 'dist/FluentCleanerPortable-${{ steps.build.outputs.version }}.zip'
+          # includeBaseDirectory = true GUARANTEES a single top-level FluentCleanerPortable folder.
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::CreateFromDirectory(
+            (Resolve-Path 'stage/FluentCleanerPortable').Path,
+            (Join-Path (Resolve-Path 'dist').Path (Split-Path $out -Leaf)),
+            [IO.Compression.CompressionLevel]::Optimal, $true)
+          $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $out).Path)
+          try {
+            $actual = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\','/') })
+            foreach ($required in @(
+                'FluentCleanerPortable/FluentCleanerPortable.exe',
+                'FluentCleanerPortable/App/AppInfo/appinfo.ini',
+                'FluentCleanerPortable/App/AppInfo/appicon.ico')) {
+              if ($actual -cnotcontains $required) { throw "Portable ZIP missing '$required'; entries: $($actual -join ', ')" }
+            }
+            Write-Host "PASS: ready-to-extract archive includes parent folder, launcher, menu metadata and original icon."
+          } finally { $archive.Dispose() }
+
+      - name: Upload portable ZIP package
         uses: actions/upload-artifact@v7
         with:
           name: FluentCleanerClassicPortable-${{ steps.build.outputs.version }}
-          path: stage/FluentCleanerPortable/**
+          path: dist/*.zip
           if-no-files-found: error
           retention-days: 1
-          include-hidden-files: true
-          compression-level: 6
+          compression-level: 0

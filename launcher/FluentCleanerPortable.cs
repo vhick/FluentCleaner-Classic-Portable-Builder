@@ -28,7 +28,9 @@ internal static class FluentCleanerPortable
             appSettings = Path.Combine(app, "settings.json");
             dataSettings = Path.Combine(data, @"Settings\settings.json");
             if (args.Length == 1 && args[0].Equals("--self-test", StringComparison.OrdinalIgnoreCase))
-                return (File.Exists(exe) && Directory.Exists(Path.Combine(root,"Other"))) ? 0 : 21;
+                return (File.Exists(exe) && Directory.Exists(Path.Combine(root,"Other")) &&
+                        File.Exists(Path.Combine(root, @"App\AppInfo\appinfo.ini")) &&
+                        File.Exists(Path.Combine(root, @"App\AppInfo\appicon.ico"))) ? 0 : 21;
             if (args.Length != 0)
             {
                 Fail("This portable launcher only supports interactive use.\n\n" +
