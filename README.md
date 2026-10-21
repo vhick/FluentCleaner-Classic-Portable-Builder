@@ -1,4 +1,4 @@
-# FluentCleaner Classic Portable Builder — v1.2
+# FluentCleaner Classic Portable Builder — v1.3
 
 A standalone, **manual GitHub Actions builder** for the developer's official **FluentCleaner Classic** Windows release. Generates an extract-and-run package with a root `FluentCleanerPortable.exe` and `App/`, `Data/`, `Other/` directories. **No `.paf.exe` installer. No automatically triggered build.**
 
@@ -15,15 +15,15 @@ This builder does NOT claim to make unsupported features fully portable. Instead
 1. Create a **new GitHub repository** named `FluentCleaner-Classic-Portable-Builder` (not a fork of the developer's project).
 2. Download/extract this builder ZIP.
 3. Using GitHub Desktop, copy all files and folders from the extracted builder into the new repository. Include the **hidden `.github` folder**.
-4. Commit and push. The updated repository should now contain `scripts/build.ps1` and `launcher/FluentCleanerPortable.cs` from v1.2.
+4. Commit and push. The updated repository should now contain `scripts/build.ps1` and `launcher/FluentCleanerPortable.cs` from v1.3.
 5. In GitHub, go to **Actions** → **Build FluentCleaner Classic Portable (Manual)** → **Run workflow**.
 6. Keep `release_tag` = `latest`, or enter the developer's official combined release tag (example `26.09.01`). This is **not** the Classic version string `1.18.250`.
 7. Wait for a green checkmark. Download the **FluentCleanerClassicPortable-...** artifact and extract it anywhere writable.
 8. Start **FluentCleanerPortable.exe** at the package root. Never start automatic cleaning from the launcher.
 
-**Important:** GitHub workflow and Windows GUI operation have not yet been validated for v1.2. If this run fails, share its new log. The `EXE files discovered` diagnostics will make further release-format problems easier to identify.
+**Important:** GitHub workflow and Windows GUI operation have not yet been validated for v1.3. If this run fails, share its new log. The `EXE files discovered` diagnostics will make further release-format problems easier to identify.
 
-**v1.2 fix:** The v1.1 workflow successfully downloaded and SHA-256 verified the official Classic ZIP, but incorrectly required `FCleaner.exe` and failed with “found 0.” The developer currently documents `FluentCleaner.Classic.exe` as the correct executable. This builder recognizes **either** `FluentCleaner.Classic.exe` or `FCleaner.exe`, prints the actual EXE file list during extraction, and refuses ambiguous or unknown executable selections. The launcher uses the name packaged by the builder. The upstream executable is not renamed.
+**v1.3 fix:** The v1.1 workflow successfully downloaded and SHA-256 verified the official Classic ZIP, but incorrectly required `FCleaner.exe` and failed with “found 0.” The developer currently documents `FluentCleaner.Classic.exe` as the correct executable. This builder recognizes **either** `FluentCleaner.Classic.exe` or `FCleaner.exe`, prints the actual EXE file list during extraction, and refuses ambiguous or unknown executable selections. The launcher uses the name packaged by the builder. The upstream executable is not renamed.
 
 The workflow does not run on a schedule. New releases require another manual build.
 
@@ -84,3 +84,9 @@ See [docs/TEST-CHECKLIST.md](docs/TEST-CHECKLIST.md). Workflow validation **does
 ### Sources and redistribution
 
 FluentCleaner Classic is created and owned by builtbybel; the **upstream binaries** are downloaded from official GitHub releases by the workflow, **not bundled** into this build kit. Its Classic source is private; we do not redistribute modified proprietary code. The standalone launcher and scripts are MIT licensed (see `LICENSE-LAUNCHER.txt`). The original icon is read from the official executable during building. The official asset SHA-256 is recorded as an audit trail; **no claim of a separately published upstream checksum** is made.
+
+## v1.3 Windows encoding regression fix
+
+The GitHub Actions run on 2026-10-21 stopped during **Validate builder files**: two of the seven Python unit tests attempted to decode UTF-8 source files using Windows default `cp1252`, resulting in `UnicodeDecodeError`. No application packaging took place during that run. This revision explicitly reads all test inputs as UTF-8, enables UTF-8 mode for the Windows test process, and adds two regression checks to keep it that way.
+
+This is a builder-validation fix, not an upstream FluentCleaner application modification. The actual Windows compilation, portable launcher behavior, and any further build steps still require a successful GitHub Actions run.

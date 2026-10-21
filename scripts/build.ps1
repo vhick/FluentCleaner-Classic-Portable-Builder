@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ProgressPreference = 'SilentlyContinue'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
-$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.2'; 'Accept' = 'application/vnd.github+json' }
+$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.3'; 'Accept' = 'application/vnd.github+json' }
 $api = 'https://api.github.com/repos/builtbybel/FluentCleaner'
 $assetName = 'FluentCleaner-Classic-net48.zip'
 
@@ -54,7 +54,7 @@ if (Test-Path $work) { Remove-Item -LiteralPath $work -Recurse -Force }
 if (Test-Path $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $work,$stage -Force | Out-Null
 $archive = Join-Path $work $assetName
-Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.2' } -MaximumRedirection 5
+Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.3' } -MaximumRedirection 5
 if ((Get-Item -LiteralPath $archive).Length -lt 50000) { throw 'Official ZIP appears to be empty or truncated.' }
 if ([long]$asset.size -gt 0 -and (Get-Item -LiteralPath $archive).Length -ne [long]$asset.size) {
     throw 'Downloaded ZIP file length does not match GitHub release asset metadata.'
@@ -147,7 +147,7 @@ Official distribution: $url
 Official asset SHA256: $sha
 Classic program version (from executable metadata): $version
 Classic executable filename: $exeName
-Builder version: 1.2
+Builder version: 1.3
 Unmodified Classic binary: yes
 Settings handling: local settings.json is backed up to Data/Settings/settings.json
 IMPORTANT: app scheduled tasks and automatic CLI logs cannot be made isolated without modifying Classic's private source.
