@@ -1,0 +1,46 @@
+name: Build FluentCleaner Classic Portable (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Official GitHub release tag (latest or e.g. 26.09.01); paired release includes Classic'
+        type: string
+        required: true
+        default: 'latest'
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    name: Package official Classic on Windows
+    runs-on: windows-2022
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out standalone builder repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate builder files
+        run: python -m unittest discover -s tests -v
+
+      - name: Download official Classic and package portable application
+        id: build
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: ./scripts/build.ps1 -ReleaseTag "$env:RELEASE_TAG"
+
+      - name: Upload actual ready-to-use App Data Other portable folder
+        uses: actions/upload-artifact@v7
+        with:
+          name: FluentCleanerClassicPortable-${{ steps.build.outputs.version }}
+          path: stage/FluentCleanerPortable/**
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
+          compression-level: 6

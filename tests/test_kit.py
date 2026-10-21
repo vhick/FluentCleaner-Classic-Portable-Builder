@@ -1,0 +1,30 @@
+import pathlib,unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+class BuilderContract(unittest.TestCase):
+    def test_manual_only(self):
+        yaml=(ROOT/'.github/workflows/build-fluentcleaner-classic-portable.yml').read_text()
+        self.assertIn('workflow_dispatch:', yaml)
+        self.assertNotIn('schedule:', yaml)
+        self.assertIn('windows-2022', yaml)
+        self.assertIn('actions/upload-artifact@v7', yaml)
+        self.assertIn('include-hidden-files: true', yaml)
+    def test_expected_official_asset(self):
+        txt=(ROOT/'scripts/build.ps1').read_text()
+        self.assertIn('FluentCleaner-Classic-net48.zip', txt)
+        self.assertIn('builtbybel/FluentCleaner', txt)
+        self.assertIn('Get-FileHash', txt)
+        self.assertIn('Extract-OfficialIcon.ps1', txt)
+    def test_no_global_clean_or_appdata_rename(self):
+        src=(ROOT/'launcher/FluentCleanerPortable.cs').read_text()
+        self.assertIn('File.Exists(exe)', src)
+        self.assertIn('SaveSettings(false)', src)
+        self.assertIn('settings.json', src)
+        for dangerous in ['schtasks /delete', 'Remove-Item $env:APPDATA', 'SetEnvironmentVariable("APPDATA"']:
+            self.assertNotIn(dangerous, src)
+    def test_docs_disclose_closed_source(self):
+        doc=(ROOT/'README.md').read_text().lower()
+        self.assertIn('closed source',doc)
+        self.assertIn('scheduled',doc)
+        self.assertIn('preserve',doc)
+if __name__=='__main__': unittest.main()

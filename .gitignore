@@ -1,0 +1,5 @@
+work/
+stage/
+*.tmp
+.DS_Store
+__pycache__/
