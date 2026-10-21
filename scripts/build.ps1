@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ProgressPreference = 'SilentlyContinue'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
-$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.1'; 'Accept' = 'application/vnd.github+json' }
+$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.2'; 'Accept' = 'application/vnd.github+json' }
 $api = 'https://api.github.com/repos/builtbybel/FluentCleaner'
 $assetName = 'FluentCleaner-Classic-net48.zip'
 
@@ -54,7 +54,7 @@ if (Test-Path $work) { Remove-Item -LiteralPath $work -Recurse -Force }
 if (Test-Path $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $work,$stage -Force | Out-Null
 $archive = Join-Path $work $assetName
-Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.1' } -MaximumRedirection 5
+Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.2' } -MaximumRedirection 5
 if ((Get-Item -LiteralPath $archive).Length -lt 50000) { throw 'Official ZIP appears to be empty or truncated.' }
 if ([long]$asset.size -gt 0 -and (Get-Item -LiteralPath $archive).Length -ne [long]$asset.size) {
     throw 'Downloaded ZIP file length does not match GitHub release asset metadata.'
@@ -85,15 +85,29 @@ try {
 } finally { $zip.Dispose() }
 $extracted = Join-Path $work 'original'
 Expand-Archive -LiteralPath $archive -DestinationPath $extracted -Force
-$candidates = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter 'FCleaner.exe')
-if ($candidates.Count -ne 1) { throw "Expected exactly one FCleaner.exe; found $($candidates.Count)." }
+# Documented executable name: FluentCleaner.Classic.exe (official Classic HELP.md).
+# Some older third-party packaging discussions mention FCleaner.exe. Support both,
+# but NEVER select arbitrary helper executables or the Modern edition by mistake.
+$allExecutables = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter '*.exe')
+Write-Host 'EXE files discovered in the VERIFIED official Classic ZIP:'
+foreach ($item in $allExecutables) {
+    Write-Host "  $($item.FullName.Substring($extracted.Length).TrimStart('\','/'))"
+}
+$names = @('FluentCleaner.Classic.exe', 'FCleaner.exe')
+$candidates = @($allExecutables | Where-Object { $names -contains $_.Name })
+if ($candidates.Count -ne 1) {
+    $observed = if ($allExecutables.Count -eq 0) { '[No EXE files found]' } else { ($allExecutables.Name -join ', ') }
+    throw "Expected exactly one official Classic executable (FluentCleaner.Classic.exe or FCleaner.exe); found $($candidates.Count). All EXE filenames: $observed"
+}
 $originalExe = $candidates[0].FullName
+$exeName = $candidates[0].Name
+Write-Host "Selected official Classic executable: $exeName"
 # Copy the complete upstream distribution directory (DLLs, databases, locales, Custom rules).
 $appDir = Join-Path $stage 'App/FluentCleaner'
 New-Item -ItemType Directory -Path $appDir -Force | Out-Null
 Get-ChildItem -LiteralPath (Split-Path -Parent $originalExe) -Force | Copy-Item -Destination $appDir -Recurse -Force
-$packagedExe = Join-Path $appDir 'FCleaner.exe'
-if (-not (Test-Path -LiteralPath $packagedExe)) { throw 'Missing official FCleaner.exe in App after copying.' }
+$packagedExe = Join-Path $appDir $exeName
+if (-not (Test-Path -LiteralPath $packagedExe)) { throw "Missing official Classic executable $exeName in App after copying." }
 # Do not include any developer's test profile or personal preferences in the distributed build.
 # App/settings.json is created automatically on first launch and kept synchronized with Data.
 $packagedSettings = Join-Path $appDir 'settings.json'
@@ -106,6 +120,7 @@ foreach ($sub in @('Settings','Custom','Databases')) {
 $iconDir = Join-Path $stage 'Other/AppInfo'
 $srcDir = Join-Path $stage 'Other/Source'
 New-Item -ItemType Directory -Path $iconDir,$srcDir -Force | Out-Null
+# Retain official basename (no rename to avoid breaking executable configuration/resources).
 $icon = Join-Path $iconDir 'FluentCleaner.ico'
 & (Join-Path $PSScriptRoot 'Extract-OfficialIcon.ps1') -ExePath $packagedExe -OutputPath $icon
 # Build the launcher's .NET Framework 4.8 Windows GUI executable using Windows' native C# compiler.
@@ -131,7 +146,8 @@ FluentCleaner Classic: upstream release tag $($release.tag_name)
 Official distribution: $url
 Official asset SHA256: $sha
 Classic program version (from executable metadata): $version
-Builder version: 1.1
+Classic executable filename: $exeName
+Builder version: 1.2
 Unmodified Classic binary: yes
 Settings handling: local settings.json is backed up to Data/Settings/settings.json
 IMPORTANT: app scheduled tasks and automatic CLI logs cannot be made isolated without modifying Classic's private source.

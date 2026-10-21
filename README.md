@@ -1,4 +1,4 @@
-# FluentCleaner Classic Portable Builder — v1.1
+# FluentCleaner Classic Portable Builder — v1.2
 
 A standalone, **manual GitHub Actions builder** for the developer's official **FluentCleaner Classic** Windows release. Generates an extract-and-run package with a root `FluentCleanerPortable.exe` and `App/`, `Data/`, `Other/` directories. **No `.paf.exe` installer. No automatically triggered build.**
 
@@ -15,13 +15,15 @@ This builder does NOT claim to make unsupported features fully portable. Instead
 1. Create a **new GitHub repository** named `FluentCleaner-Classic-Portable-Builder` (not a fork of the developer's project).
 2. Download/extract this builder ZIP.
 3. Using GitHub Desktop, copy all files and folders from the extracted builder into the new repository. Include the **hidden `.github` folder**.
-4. Commit and push.
+4. Commit and push. The updated repository should now contain `scripts/build.ps1` and `launcher/FluentCleanerPortable.cs` from v1.2.
 5. In GitHub, go to **Actions** → **Build FluentCleaner Classic Portable (Manual)** → **Run workflow**.
 6. Keep `release_tag` = `latest`, or enter the developer's official combined release tag (example `26.09.01`). This is **not** the Classic version string `1.18.250`.
 7. Wait for a green checkmark. Download the **FluentCleanerClassicPortable-...** artifact and extract it anywhere writable.
 8. Start **FluentCleanerPortable.exe** at the package root. Never start automatic cleaning from the launcher.
 
-**v1.1 fix:** Corrected release detection for PowerShell JSON arrays and corrected the Classic executable name to `FCleaner.exe`. The builder selects the current stable release directly before searching older stable releases.
+**Important:** GitHub workflow and Windows GUI operation have not yet been validated for v1.2. If this run fails, share its new log. The `EXE files discovered` diagnostics will make further release-format problems easier to identify.
+
+**v1.2 fix:** The v1.1 workflow successfully downloaded and SHA-256 verified the official Classic ZIP, but incorrectly required `FCleaner.exe` and failed with “found 0.” The developer currently documents `FluentCleaner.Classic.exe` as the correct executable. This builder recognizes **either** `FluentCleaner.Classic.exe` or `FCleaner.exe`, prints the actual EXE file list during extraction, and refuses ambiguous or unknown executable selections. The launcher uses the name packaged by the builder. The upstream executable is not renamed.
 
 The workflow does not run on a schedule. New releases require another manual build.
 
@@ -32,7 +34,8 @@ FluentCleanerPortable/
   FluentCleanerPortable.exe     <-- always open this file
   App/
     FluentCleaner/
-      FCleaner.exe <-- developer's original executable
+      FluentCleaner.Classic.exe <-- normal official executable
+      (or FCleaner.exe if present in an older official release)
       Custom/                   <-- app's working custom rules
       (upstream DLLs, rules and translations)
       settings.json             <-- working copy created on launch

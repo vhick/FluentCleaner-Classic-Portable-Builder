@@ -23,13 +23,28 @@ class BuilderContract(unittest.TestCase):
         self.assertIn('Get-ClassicAsset',script)
         self.assertNotIn('$releases = @(Invoke-RestMethod',script)
         self.assertIn('SHA256 does not match', script)
-    def test_classic_real_executable(self):
+    def test_classic_executable_is_discovered_and_never_assumed(self):
         build=(ROOT/'scripts/build.ps1').read_text()
         launcher=(ROOT/'launcher/FluentCleanerPortable.cs').read_text()
         doc=(ROOT/'README.md').read_text()
-        for text in (build,launcher,doc):
-            self.assertIn('FCleaner.exe',text)
-            self.assertNotIn('FluentCleaner.Classic.exe',text)
+        # Both known official EXE names must be checked in the actual extracted ZIP.
+        for name in ('FluentCleaner.Classic.exe', 'FCleaner.exe'):
+            self.assertIn(name,build)
+            self.assertIn(name,launcher)
+            self.assertIn(name,doc)
+        self.assertIn("Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter '*.exe'",build)
+        self.assertIn('EXE files discovered',build)
+        self.assertIn('$exeName = $candidates[0].Name',build)
+        self.assertIn('$packagedExe = Join-Path $appDir $exeName',build)
+        self.assertIn('LocateClassicExecutable()',launcher)
+        self.assertNotIn("-Filter 'FCleaner.exe'",build)
+        self.assertNotIn('exe = Path.Combine(app, "FCleaner.exe")',launcher)
+    def test_fail_closed_if_no_unique_classic_exe(self):
+        build=(ROOT/'scripts/build.ps1').read_text()
+        self.assertIn('if ($candidates.Count -ne 1)',build)
+        self.assertIn('All EXE filenames:',build)
+        self.assertIn('Selected official Classic executable:',build)
+
     def test_no_global_clean_or_appdata_rename(self):
         src=(ROOT/'launcher/FluentCleanerPortable.cs').read_text()
         self.assertIn('File.Exists(exe)', src)

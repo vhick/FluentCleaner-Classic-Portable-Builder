@@ -24,7 +24,7 @@ internal static class FluentCleanerPortable
             root = Path.GetDirectoryName(typeof(FluentCleanerPortable).Assembly.Location);
             app = Path.Combine(root, @"App\FluentCleaner");
             data = Path.Combine(root, "Data");
-            exe = Path.Combine(app, "FCleaner.exe");
+            exe = LocateClassicExecutable();
             appSettings = Path.Combine(app, "settings.json");
             dataSettings = Path.Combine(data, @"Settings\settings.json");
             if (args.Length == 1 && args[0].Equals("--self-test", StringComparison.OrdinalIgnoreCase))
@@ -39,7 +39,7 @@ internal static class FluentCleanerPortable
             }
             if (!File.Exists(exe))
             {
-                Fail("Missing App\\FluentCleaner\\FCleaner.exe.\n\n" +
+                Fail("Missing official Classic executable under App\\FluentCleaner.\n\n" +
                      "Extract the entire ZIP, then use the root FluentCleanerPortable.exe.");
                 return 3;
             }
@@ -94,6 +94,21 @@ internal static class FluentCleanerPortable
                  "Your existing Data folder has not been deleted.");
             return 10;
         }
+    }
+
+    // Official Classic HELP.md documents FluentCleaner.Classic.exe; a historic package
+    // discussion used FCleaner.exe. Support either without changing upstream file names.
+    // Do not select an arbitrary .exe: helper programs may be present in later releases.
+    static string LocateClassicExecutable()
+    {
+        string newer = Path.Combine(app, "FluentCleaner.Classic.exe");
+        string older = Path.Combine(app, "FCleaner.exe");
+        bool hasNewer = File.Exists(newer), hasOlder = File.Exists(older);
+        if (hasNewer && hasOlder)
+            throw new InvalidDataException("Ambiguous Classic package: both supported executable names exist.");
+        if (hasNewer) return newer;
+        if (hasOlder) return older;
+        return newer; // self-test and missing-file error handle the absent file.
     }
 
     static string MutexId(string path)
