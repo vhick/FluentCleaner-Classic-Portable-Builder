@@ -4,23 +4,45 @@ Set-StrictMode -Version Latest
 $ProgressPreference = 'SilentlyContinue'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
-$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.0'; 'Accept' = 'application/vnd.github+json' }
+$headers = @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.1'; 'Accept' = 'application/vnd.github+json' }
 $api = 'https://api.github.com/repos/builtbybel/FluentCleaner'
 $assetName = 'FluentCleaner-Classic-net48.zip'
-if ($ReleaseTag -eq 'latest') {
-    $releases = @(Invoke-RestMethod -Uri "$api/releases?per_page=30" -Headers $headers)
-    $release = $releases | Where-Object {
-        -not $_.draft -and -not $_.prerelease -and
-        @($_.assets | Where-Object { $_.name -eq $assetName }).Count -ge 1
-    } | Select-Object -First 1
-} else {
-    if ($ReleaseTag -notmatch '^[a-zA-Z0-9._-]{1,40}$') { throw 'Use latest or an official GitHub release tag (example: 26.09.01).' }
-    $release = Invoke-RestMethod -Uri "$api/releases/tags/$ReleaseTag" -Headers $headers
+
+# PowerShell's Invoke-RestMethod does not automatically enumerate a JSON array
+# when its output is piped directly to Where-Object. GitHub lists releases as
+# an array. Resolve /releases/latest directly first, then enumerate the
+# fallback /releases endpoint explicitly with foreach.
+function Get-ClassicAsset($candidate) {
+    if ($null -eq $candidate -or $candidate.draft -or $candidate.prerelease) { return $null }
+    $found = @($candidate.assets | Where-Object { $_.name -ceq $assetName -and $_.state -eq 'uploaded' })
+    if ($found.Count -eq 1) { return $found[0] }
+    return $null
 }
-if ($null -eq $release -or $release.draft -or $release.prerelease) { throw 'Cannot find an official stable release containing FluentCleaner Classic.' }
-$matches = @($release.assets | Where-Object { $_.name -ceq $assetName })
-if ($matches.Count -ne 1) { throw "Expected exactly one official $assetName in release $($release.tag_name)." }
-$asset = $matches[0]
+$release = $null
+$asset = $null
+if ($ReleaseTag -eq 'latest') {
+    $latest = Invoke-RestMethod -Uri "$api/releases/latest" -Headers $headers
+    $asset = Get-ClassicAsset $latest
+    if ($null -ne $asset) {
+        $release = $latest
+    } else {
+        Write-Warning 'Latest GitHub release has no Classic ZIP. Searching other stable releases.'
+        $releases = Invoke-RestMethod -Uri "$api/releases?per_page=100" -Headers $headers
+        foreach ($candidate in $releases) {
+            $found = Get-ClassicAsset $candidate
+            if ($null -ne $found) { $release = $candidate; $asset = $found; break }
+        }
+    }
+} else {
+    if ($ReleaseTag -notmatch '^[a-zA-Z0-9._-]{1,40}$') {
+        throw 'Use latest or an official GitHub release tag (example: 26.09.01).'
+    }
+    $release = Invoke-RestMethod -Uri "$api/releases/tags/$ReleaseTag" -Headers $headers
+    $asset = Get-ClassicAsset $release
+}
+if ($null -eq $release -or $null -eq $asset) {
+    throw 'No official stable release with FluentCleaner-Classic-net48.zip found. Check the Classic asset on https://github.com/builtbybel/FluentCleaner/releases or enter an explicit official release tag.'
+}
 $url = [string]$asset.browser_download_url
 if (-not $url.StartsWith('https://github.com/builtbybel/FluentCleaner/releases/download/',[StringComparison]::OrdinalIgnoreCase)) {
     throw "Refusing non-official release asset URL: $url"
@@ -32,12 +54,22 @@ if (Test-Path $work) { Remove-Item -LiteralPath $work -Recurse -Force }
 if (Test-Path $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $work,$stage -Force | Out-Null
 $archive = Join-Path $work $assetName
-Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.0' } -MaximumRedirection 5
+Invoke-WebRequest -Uri $url -OutFile $archive -Headers @{ 'User-Agent' = 'FluentCleanerClassicPortableBuilder/1.1' } -MaximumRedirection 5
 if ((Get-Item -LiteralPath $archive).Length -lt 50000) { throw 'Official ZIP appears to be empty or truncated.' }
 if ([long]$asset.size -gt 0 -and (Get-Item -LiteralPath $archive).Length -ne [long]$asset.size) {
     throw 'Downloaded ZIP file length does not match GitHub release asset metadata.'
 }
 $sha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+# Recent GitHub release assets provide an API sha256 digest. Verify when present.
+if ($asset.PSObject.Properties.Name -contains 'digest' -and
+    -not [string]::IsNullOrWhiteSpace([string]$asset.digest)) {
+    $expectedDigest = [string]$asset.digest
+    if ($expectedDigest -notmatch '^sha256:[a-fA-F0-9]{64}$') { throw "Unsupported GitHub asset digest: $expectedDigest" }
+    if (-not $sha.Equals($expectedDigest.Substring(7), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Downloaded Classic asset SHA256 does not match the GitHub release digest.'
+    }
+    Write-Host 'Verified SHA256 against GitHub release asset metadata.'
+}
 Write-Host "SHA256 of downloaded official Classic asset: $sha"
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.ZipFile
@@ -53,15 +85,15 @@ try {
 } finally { $zip.Dispose() }
 $extracted = Join-Path $work 'original'
 Expand-Archive -LiteralPath $archive -DestinationPath $extracted -Force
-$candidates = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter 'FluentCleaner.Classic.exe')
-if ($candidates.Count -ne 1) { throw "Expected exactly one FluentCleaner.Classic.exe; found $($candidates.Count)." }
+$candidates = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter 'FCleaner.exe')
+if ($candidates.Count -ne 1) { throw "Expected exactly one FCleaner.exe; found $($candidates.Count)." }
 $originalExe = $candidates[0].FullName
 # Copy the complete upstream distribution directory (DLLs, databases, locales, Custom rules).
 $appDir = Join-Path $stage 'App/FluentCleaner'
 New-Item -ItemType Directory -Path $appDir -Force | Out-Null
 Get-ChildItem -LiteralPath (Split-Path -Parent $originalExe) -Force | Copy-Item -Destination $appDir -Recurse -Force
-$packagedExe = Join-Path $appDir 'FluentCleaner.Classic.exe'
-if (-not (Test-Path -LiteralPath $packagedExe)) { throw 'Missing official FluentCleaner.Classic.exe in App after copying.' }
+$packagedExe = Join-Path $appDir 'FCleaner.exe'
+if (-not (Test-Path -LiteralPath $packagedExe)) { throw 'Missing official FCleaner.exe in App after copying.' }
 # Do not include any developer's test profile or personal preferences in the distributed build.
 # App/settings.json is created automatically on first launch and kept synchronized with Data.
 $packagedSettings = Join-Path $appDir 'settings.json'
@@ -99,7 +131,7 @@ FluentCleaner Classic: upstream release tag $($release.tag_name)
 Official distribution: $url
 Official asset SHA256: $sha
 Classic program version (from executable metadata): $version
-Builder version: 1.0
+Builder version: 1.1
 Unmodified Classic binary: yes
 Settings handling: local settings.json is backed up to Data/Settings/settings.json
 IMPORTANT: app scheduled tasks and automatic CLI logs cannot be made isolated without modifying Classic's private source.

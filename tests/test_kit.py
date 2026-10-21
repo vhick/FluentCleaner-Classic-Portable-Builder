@@ -15,6 +15,21 @@ class BuilderContract(unittest.TestCase):
         self.assertIn('builtbybel/FluentCleaner', txt)
         self.assertIn('Get-FileHash', txt)
         self.assertIn('Extract-OfficialIcon.ps1', txt)
+    def test_release_selection_uses_direct_latest_and_foreach_fallback(self):
+        script=(ROOT/'scripts/build.ps1').read_text()
+        self.assertIn('"$api/releases/latest"',script)
+        self.assertIn('foreach ($candidate in $releases)',script)
+        self.assertIn('"$api/releases?per_page=100"',script)
+        self.assertIn('Get-ClassicAsset',script)
+        self.assertNotIn('$releases = @(Invoke-RestMethod',script)
+        self.assertIn('SHA256 does not match', script)
+    def test_classic_real_executable(self):
+        build=(ROOT/'scripts/build.ps1').read_text()
+        launcher=(ROOT/'launcher/FluentCleanerPortable.cs').read_text()
+        doc=(ROOT/'README.md').read_text()
+        for text in (build,launcher,doc):
+            self.assertIn('FCleaner.exe',text)
+            self.assertNotIn('FluentCleaner.Classic.exe',text)
     def test_no_global_clean_or_appdata_rename(self):
         src=(ROOT/'launcher/FluentCleanerPortable.cs').read_text()
         self.assertIn('File.Exists(exe)', src)

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Official GitHub release tag (latest or e.g. 26.09.01); paired release includes Classic'
+        description: 'Official Classic release (latest or a tag such as 26.09.01)'
         type: string
         required: true
         default: 'latest'

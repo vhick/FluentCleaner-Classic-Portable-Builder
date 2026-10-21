@@ -24,7 +24,7 @@ internal static class FluentCleanerPortable
             root = Path.GetDirectoryName(typeof(FluentCleanerPortable).Assembly.Location);
             app = Path.Combine(root, @"App\FluentCleaner");
             data = Path.Combine(root, "Data");
-            exe = Path.Combine(app, "FluentCleaner.Classic.exe");
+            exe = Path.Combine(app, "FCleaner.exe");
             appSettings = Path.Combine(app, "settings.json");
             dataSettings = Path.Combine(data, @"Settings\settings.json");
             if (args.Length == 1 && args[0].Equals("--self-test", StringComparison.OrdinalIgnoreCase))
@@ -39,7 +39,7 @@ internal static class FluentCleanerPortable
             }
             if (!File.Exists(exe))
             {
-                Fail("Missing App\\FluentCleaner\\FluentCleaner.Classic.exe.\n\n" +
+                Fail("Missing App\\FluentCleaner\\FCleaner.exe.\n\n" +
                      "Extract the entire ZIP, then use the root FluentCleanerPortable.exe.");
                 return 3;
             }

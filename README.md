@@ -1,4 +1,4 @@
-# FluentCleaner Classic Portable Builder — v1.0
+# FluentCleaner Classic Portable Builder — v1.1
 
 A standalone, **manual GitHub Actions builder** for the developer's official **FluentCleaner Classic** Windows release. Generates an extract-and-run package with a root `FluentCleanerPortable.exe` and `App/`, `Data/`, `Other/` directories. **No `.paf.exe` installer. No automatically triggered build.**
 
@@ -21,6 +21,8 @@ This builder does NOT claim to make unsupported features fully portable. Instead
 7. Wait for a green checkmark. Download the **FluentCleanerClassicPortable-...** artifact and extract it anywhere writable.
 8. Start **FluentCleanerPortable.exe** at the package root. Never start automatic cleaning from the launcher.
 
+**v1.1 fix:** Corrected release detection for PowerShell JSON arrays and corrected the Classic executable name to `FCleaner.exe`. The builder selects the current stable release directly before searching older stable releases.
+
 The workflow does not run on a schedule. New releases require another manual build.
 
 ## Resulting application layout
@@ -30,7 +32,7 @@ FluentCleanerPortable/
   FluentCleanerPortable.exe     <-- always open this file
   App/
     FluentCleaner/
-      FluentCleaner.Classic.exe <-- developer's original executable
+      FCleaner.exe <-- developer's original executable
       Custom/                   <-- app's working custom rules
       (upstream DLLs, rules and translations)
       settings.json             <-- working copy created on launch
